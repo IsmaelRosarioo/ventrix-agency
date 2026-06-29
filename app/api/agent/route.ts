@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chat } from '@/lib/ai';
 import { systemPrompts, getSystemPrompt } from '@/lib/prompts';
+import { verifyToken, newToken, MAX_TURNS_TOKEN, type Turn } from '@/lib/conversation';
+import { filterReply } from '@/lib/outputFilter';
 
 export const runtime = 'nodejs';
 
-type IncomingMessage = { role: 'user' | 'assistant'; content: string };
-type Body = { messages?: unknown; niche?: unknown };
+type Body = { message?: unknown; niche?: unknown; token?: unknown };
 
 const ALLOWED_NICHES = Object.keys(systemPrompts);
 
@@ -34,8 +35,7 @@ function originOk(req: NextRequest): boolean {
 
 // --- Lightweight in-memory rate limit (per IP, fixed window) -----------------
 // Best-effort on Vercel serverless (per instance). Stops casual abuse and
-// protects the Ollama Cloud quota. For cross-instance limiting, upgrade to
-// Upstash Redis + @upstash/ratelimit.
+// protects the model quota. For cross-instance limiting, upgrade to Upstash.
 const WINDOW_MS = 60_000;
 const MAX_REQS = 12;
 const hits = new Map<string, { start: number; count: number }>();
@@ -58,27 +58,13 @@ function getClientIp(req: NextRequest): string {
 }
 
 // --- Input validation --------------------------------------------------------
-const MAX_MESSAGES = 20;
 const MAX_CONTENT = 1000;
 
-function validateMessages(raw: unknown): IncomingMessage[] | null {
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_MESSAGES) return null;
-  const out: IncomingMessage[] = [];
-  for (const m of raw) {
-    if (typeof m !== 'object' || m === null) return null;
-    const role = (m as { role?: unknown }).role;
-    const content = (m as { content?: unknown }).content;
-    // Never accept 'system' from the client — that would let a caller override
-    // the locked system prompt. Only user/assistant pass through.
-    if (role !== 'user' && role !== 'assistant') return null;
-    if (typeof content !== 'string') return null;
-    const trimmed = content.trim();
-    if (!trimmed || trimmed.length > MAX_CONTENT) return null;
-    out.push({ role, content: trimmed });
-  }
-  // The latest turn must be from the visitor.
-  if (out[out.length - 1]!.role !== 'user') return null;
-  return out;
+function validateMessage(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_CONTENT) return null;
+  return trimmed;
 }
 
 // Never surface upstream/provider details to the client. Log full detail
@@ -99,27 +85,49 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as Body;
-    const messages = validateMessages(body?.messages);
-    if (!messages) {
+
+    const nicheRaw = body && typeof body.niche === 'string' ? body.niche : '';
+    if (!ALLOWED_NICHES.includes(nicheRaw)) {
+      return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+    }
+    const niche = nicheRaw;
+
+    const message = validateMessage(body?.message);
+    if (!message) {
       return NextResponse.json({ error: 'invalid request' }, { status: 400 });
     }
 
-    const nicheRaw =
-      body && typeof body.niche === 'string' ? body.niche : '';
-    const niche = ALLOWED_NICHES.includes(nicheRaw) ? nicheRaw : 'plumbing';
+    // Reconstruct server-owned history from the signed token (if present).
+    // The client can never forge assistant turns — the token is HMAC-signed.
+    let turns: Turn[] = [];
+    if (typeof body?.token === 'string' && body.token.length > 0) {
+      const payload = verifyToken(body.token);
+      if (!payload) {
+        return NextResponse.json({ error: 'session expired' }, { status: 400 });
+      }
+      if (payload.niche !== niche) {
+        return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+      }
+      turns = payload.turns.length >= MAX_TURNS_TOKEN ? [] : payload.turns;
+    }
+    turns.push({ role: 'user', content: message });
 
     const system = getSystemPrompt(niche);
     const fullMessages = [
       { role: 'system' as const, content: system },
-      ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ...turns.map((t) => ({ role: t.role, content: t.content })),
     ];
 
-    const { text } = await chat(fullMessages);
+    const { text } = await chat(fullMessages, { maxTokens: 300 });
     if (!text || !text.trim()) {
       return NextResponse.json({ error: sanitizeError('empty reply') }, { status: 502 });
     }
 
-    return NextResponse.json({ reply: text });
+    const safe = filterReply(text, niche);
+    const updatedTurns: Turn[] = [...turns, { role: 'assistant', content: safe }];
+    const nextToken = newToken(niche, updatedTurns);
+
+    return NextResponse.json({ reply: safe, token: nextToken });
   } catch (err) {
     return NextResponse.json({ error: sanitizeError(err) }, { status: 500 });
   }

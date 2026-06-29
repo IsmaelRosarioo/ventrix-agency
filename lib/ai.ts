@@ -7,14 +7,18 @@ type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 
 type ChatResult = { text: string; provider: 'ollama' | 'ollama-cloud' | 'anthropic' };
 
-async function chatOllama(messages: Message[]): Promise<string> {
+export type ChatOptions = { maxTokens?: number };
+
+const DEFAULT_MAX_TOKENS = 300;
+
+async function chatOllama(messages: Message[], maxTokens: number): Promise<string> {
   const base = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
   const model = process.env.OLLAMA_MODEL ?? 'llama3.1:8b';
 
   const res = await fetch(`${base}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages, stream: false }),
+    body: JSON.stringify({ model, messages, stream: false, options: { num_predict: maxTokens } }),
   });
 
   if (!res.ok) {
@@ -26,7 +30,7 @@ async function chatOllama(messages: Message[]): Promise<string> {
   return data.message?.content ?? '';
 }
 
-async function chatOllamaCloud(messages: Message[]): Promise<string> {
+async function chatOllamaCloud(messages: Message[], maxTokens: number): Promise<string> {
   const apiKey = process.env.OLLAMA_CLOUD_API_KEY;
   if (!apiKey) throw new Error('OLLAMA_CLOUD_API_KEY not set');
   const model = process.env.OLLAMA_CLOUD_MODEL ?? 'qwen2.5:72b-instruct-q8_0';
@@ -39,7 +43,7 @@ async function chatOllamaCloud(messages: Message[]): Promise<string> {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, messages, stream: false }),
+    body: JSON.stringify({ model, messages, stream: false, options: { num_predict: maxTokens } }),
   });
 
   if (!res.ok) {
@@ -51,7 +55,7 @@ async function chatOllamaCloud(messages: Message[]): Promise<string> {
   return data.message?.content ?? '';
 }
 
-async function chatAnthropic(messages: Message[]): Promise<string> {
+async function chatAnthropic(messages: Message[], maxTokens: number): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   const model = process.env.ANTHROPIC_MODEL ?? 'claude-3-5-haiku-latest';
@@ -69,7 +73,7 @@ async function chatAnthropic(messages: Message[]): Promise<string> {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system,
       messages: rest,
     }),
@@ -86,23 +90,24 @@ async function chatAnthropic(messages: Message[]): Promise<string> {
   return data.content?.find((b) => b.type === 'text')?.text ?? '';
 }
 
-export async function chat(messages: Message[]): Promise<ChatResult> {
+export async function chat(messages: Message[], opts: ChatOptions = {}): Promise<ChatResult> {
+  const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
   const provider = (process.env.AI_PROVIDER ?? 'ollama') as
     | 'ollama'
     | 'ollama-cloud'
     | 'anthropic';
 
   if (provider === 'anthropic') {
-    const text = await chatAnthropic(messages);
+    const text = await chatAnthropic(messages, maxTokens);
     return { text, provider };
   }
 
   if (provider === 'ollama-cloud') {
-    const text = await chatOllamaCloud(messages);
+    const text = await chatOllamaCloud(messages, maxTokens);
     return { text, provider };
   }
 
   // Default to local Ollama.
-  const text = await chatOllama(messages);
+  const text = await chatOllama(messages, maxTokens);
   return { text, provider: 'ollama' };
 }

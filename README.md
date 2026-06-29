@@ -68,6 +68,14 @@ You have three options. Pick one based on what you have:
 3. Restart `npm run dev`.
 4. Haiku is recommended for cost: ~$0.25/1M input tokens.
 
+**Required for the demo agent in all cases:** generate a signing secret and set
+`AGENT_TOKEN_SECRET` in `.env.local` (and in Vercel env vars for production):
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+The `/api/agent` endpoint uses it to sign conversation tokens (server-owned
+history, anti-abuse). Without it the demo will return an error.
+
 ### 5. Deploy to Vercel (free)
 
 ```bash
