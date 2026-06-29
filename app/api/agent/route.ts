@@ -25,13 +25,10 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    const { text, provider } = await chat(fullMessages);
+    const { text } = await chat(fullMessages);
 
     return NextResponse.json({
       reply: text,
-      provider,
-      // Tell the client which provider was used — useful for the demo banner.
-      mode: process.env.AI_PROVIDER ?? 'ollama',
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error';
@@ -40,14 +37,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    provider: process.env.AI_PROVIDER ?? 'ollama',
-    model:
-      process.env.AI_PROVIDER === 'anthropic'
-        ? process.env.ANTHROPIC_MODEL
-        : process.env.AI_PROVIDER === 'ollama-cloud'
-          ? process.env.OLLAMA_CLOUD_MODEL
-          : process.env.OLLAMA_MODEL,
-  });
+  return NextResponse.json({ ok: true });
 }

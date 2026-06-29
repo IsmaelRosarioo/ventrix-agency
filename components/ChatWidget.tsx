@@ -17,22 +17,11 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [provider, setProvider] = useState<string>('checking…');
-  const [mode, setMode] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Check the API on mount so the banner shows the actual provider.
-  useEffect(() => {
-    fetch('/api/agent')
-      .then((r) => r.json())
-      .then((d) => {
-        const p = d.provider ?? 'unknown';
-        setProvider(p === 'ollama-cloud' ? 'ollama cloud' : p);
-        setMode(p === 'ollama-cloud' ? 'cloud' : p);
-      })
-      .catch(() => setProvider('offline'));
-  }, []);
+  // We deliberately don't expose the AI provider to visitors.
+  // (Showing internals lets prospects think "I can do this myself".)
 
   // Auto-scroll to bottom as messages stream in.
   useEffect(() => {
@@ -60,9 +49,8 @@ export default function ChatWidget() {
         const t = await res.text();
         throw new Error(t || `HTTP ${res.status}`);
       }
-      const data = (await res.json()) as { reply: string; provider: string };
+      const data = (await res.json()) as { reply: string };
       setMessages([...next, { role: 'assistant', content: data.reply }]);
-      setProvider(data.provider === 'ollama-cloud' ? 'ollama cloud' : data.provider);
     } catch (e) {
       const m = e instanceof Error ? e.message : 'request failed';
       setError(m);
@@ -85,7 +73,7 @@ export default function ChatWidget() {
             Live AI receptionist
           </span>
           <span className="text-xs text-ink-400">
-            ({provider} {mode && `· ${mode}`})
+            · online now
           </span>
         </div>
         <div className="flex items-center gap-2">
