@@ -31,3 +31,7 @@ next-env.d.ts
 # ollama / large model files
 ollama/
 *.gguf
+
+# local notes / scratch (not part of the site)
+_video_transcript.txt
+_*.txt

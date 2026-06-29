@@ -47,7 +47,14 @@ export default function ChatWidget() {
       });
       if (!res.ok) {
         const t = await res.text();
-        throw new Error(t || `HTTP ${res.status}`);
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j = JSON.parse(t) as { error?: string };
+          if (j?.error) msg = j.error;
+        } catch {
+          if (t) msg = t;
+        }
+        throw new Error(msg);
       }
       const data = (await res.json()) as { reply: string };
       setMessages([...next, { role: 'assistant', content: data.reply }]);
