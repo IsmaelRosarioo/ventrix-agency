@@ -25,7 +25,7 @@ async function sendViaResend(lead: Body) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      from: 'Website <onboarding@resend.dev>',
+      from: 'Ventrix Agency <hello@ventrixagency.com>',
       to,
       subject: `New lead from ${lead.source ?? 'website'}: ${lead.name}`,
       text: [
