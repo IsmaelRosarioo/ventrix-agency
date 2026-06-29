@@ -43,13 +43,26 @@ Site will be at http://localhost:3000.
 
 ### 4. Get the AI working
 
-**Option A — Free, local (Ollama):**
+You have three options. Pick one based on what you have:
+
+**Option A — Ollama Cloud (recommended if you have Ollama Pro):**
+1. Get your API key at https://ollama.com/settings/keys
+2. Set in `.env.local`:
+ ```env
+ AI_PROVIDER=ollama-cloud
+ OLLAMA_CLOUD_API_KEY=your_key_here
+ OLLAMA_CLOUD_MODEL=qwen2.5:72b
+ ```
+3. Visit http://localhost:3000/demo — chat works.
+
+**Option B — Free, local (Ollama on your PC):**
 1. Install Ollama: https://ollama.com/download
 2. Pull a model: `ollama pull llama3.1:8b`
 3. Make sure Ollama is running (`ollama serve` if needed)
-4. Visit http://localhost:3000/demo — chat works.
+4. Set `AI_PROVIDER=ollama` in `.env.local`
+5. Visit http://localhost:3000/demo — chat works.
 
-**Option B — Paid, production (Anthropic):**
+**Option C — Paid, production (Anthropic):**
 1. Get an API key: https://console.anthropic.com
 2. Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` in `.env.local`
 3. Restart `npm run dev`.

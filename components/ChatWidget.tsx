@@ -27,8 +27,9 @@ export default function ChatWidget() {
     fetch('/api/agent')
       .then((r) => r.json())
       .then((d) => {
-        setProvider(d.provider ?? 'unknown');
-        setMode(d.provider ?? '');
+        const p = d.provider ?? 'unknown';
+        setProvider(p === 'ollama-cloud' ? 'ollama cloud' : p);
+        setMode(p === 'ollama-cloud' ? 'cloud' : p);
       })
       .catch(() => setProvider('offline'));
   }, []);
@@ -61,7 +62,7 @@ export default function ChatWidget() {
       }
       const data = (await res.json()) as { reply: string; provider: string };
       setMessages([...next, { role: 'assistant', content: data.reply }]);
-      setMode(data.provider);
+      setProvider(data.provider === 'ollama-cloud' ? 'ollama cloud' : data.provider);
     } catch (e) {
       const m = e instanceof Error ? e.message : 'request failed';
       setError(m);

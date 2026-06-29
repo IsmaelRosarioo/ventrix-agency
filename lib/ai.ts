@@ -1,10 +1,11 @@
 // AI provider switcher.
-// AI_PROVIDER=ollama  -> local, free (needs Ollama running)
-// AI_PROVIDER=anthropic -> cloud, paid (~$0.25-3 / 1M tokens)
+// AI_PROVIDER=ollama       -> local Ollama, free (needs Ollama running on your PC)
+// AI_PROVIDER=ollama-cloud -> Ollama Pro cloud models, $20/mo plan covers it
+// AI_PROVIDER=anthropic    -> Anthropic Claude, paid (~$0.25-3 / 1M tokens)
 
 type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 
-type ChatResult = { text: string; provider: 'ollama' | 'anthropic' };
+type ChatResult = { text: string; provider: 'ollama' | 'ollama-cloud' | 'anthropic' };
 
 async function chatOllama(messages: Message[]): Promise<string> {
   const base = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
@@ -19,6 +20,31 @@ async function chatOllama(messages: Message[]): Promise<string> {
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Ollama ${res.status}: ${body}`);
+  }
+
+  const data = (await res.json()) as { message?: { content?: string } };
+  return data.message?.content ?? '';
+}
+
+async function chatOllamaCloud(messages: Message[]): Promise<string> {
+  const apiKey = process.env.OLLAMA_CLOUD_API_KEY;
+  if (!apiKey) throw new Error('OLLAMA_CLOUD_API_KEY not set');
+  const model = process.env.OLLAMA_CLOUD_MODEL ?? 'qwen2.5:72b';
+
+  // Ollama Cloud uses the same /api/chat endpoint as local Ollama,
+  // but at ollama.com with bearer auth.
+  const res = await fetch('https://ollama.com/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, messages, stream: false }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Ollama Cloud ${res.status}: ${body}`);
   }
 
   const data = (await res.json()) as { message?: { content?: string } };
@@ -61,14 +87,22 @@ async function chatAnthropic(messages: Message[]): Promise<string> {
 }
 
 export async function chat(messages: Message[]): Promise<ChatResult> {
-  const provider = (process.env.AI_PROVIDER ?? 'ollama') as 'ollama' | 'anthropic';
+  const provider = (process.env.AI_PROVIDER ?? 'ollama') as
+    | 'ollama'
+    | 'ollama-cloud'
+    | 'anthropic';
 
   if (provider === 'anthropic') {
     const text = await chatAnthropic(messages);
     return { text, provider };
   }
 
-  // Default to Ollama.
+  if (provider === 'ollama-cloud') {
+    const text = await chatOllamaCloud(messages);
+    return { text, provider };
+  }
+
+  // Default to local Ollama.
   const text = await chatOllama(messages);
   return { text, provider: 'ollama' };
 }

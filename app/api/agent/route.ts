@@ -46,6 +46,8 @@ export async function GET() {
     model:
       process.env.AI_PROVIDER === 'anthropic'
         ? process.env.ANTHROPIC_MODEL
-        : process.env.OLLAMA_MODEL,
+        : process.env.AI_PROVIDER === 'ollama-cloud'
+          ? process.env.OLLAMA_CLOUD_MODEL
+          : process.env.OLLAMA_MODEL,
   });
 }
