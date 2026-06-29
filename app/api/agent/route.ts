@@ -17,7 +17,11 @@ function allowedOrigins(): string[] {
   const site = process.env.NEXT_PUBLIC_SITE_URL;
   if (site) origins.push(site.replace(/\/$/, ''));
   if (process.env.VERCEL_URL) origins.push(`https://${process.env.VERCEL_URL}`);
-  origins.push('https://ventrix-agency.vercel.app', 'http://localhost:3000');
+  origins.push(
+    'https://ventrix-agency.vercel.app',
+    'https://www.ventrixagency.com',
+    'http://localhost:3000',
+  );
   return origins;
 }
 
