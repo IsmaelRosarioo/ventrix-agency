@@ -29,7 +29,7 @@ async function chatOllama(messages: Message[]): Promise<string> {
 async function chatOllamaCloud(messages: Message[]): Promise<string> {
   const apiKey = process.env.OLLAMA_CLOUD_API_KEY;
   if (!apiKey) throw new Error('OLLAMA_CLOUD_API_KEY not set');
-  const model = process.env.OLLAMA_CLOUD_MODEL ?? 'qwen2.5:72b';
+  const model = process.env.OLLAMA_CLOUD_MODEL ?? 'qwen2.5:72b-instruct-q8_0';
 
   // Ollama Cloud uses the same /api/chat endpoint as local Ollama,
   // but at ollama.com with bearer auth.
