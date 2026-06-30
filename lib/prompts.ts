@@ -75,31 +75,36 @@ export function getSystemPrompt(niche: string = 'plumbing'): string {
   return systemPrompts[niche as Niche] ?? systemPrompts.general;
 }
 
-// Substrings the output filter treats as a disclosure leak. Derived from the
-// active niche: the business name (parsed from the copy) plus a short,
-// hand-curated list of verbatim instruction sentences. Keep this list adjacent
-// to the niche copy and in sync if the copy is edited. Phrases are full
-// sentences (not short fragments) to avoid false positives on legit replies.
+// Substrings the output filter treats as a disclosure leak. These must be
+// IMPERATIVE instruction sentences addressed to the bot ("Ask ...", "If they
+// say ...", "Capture ...") — phrases that only appear if the model is reciting
+// its prompt verbatim. They must NOT be lines the niche copy tells the bot to
+// SAY to the user (e.g. "a dispatcher will call you back within 15 minutes",
+// "$79 diagnostic fee", "free storm-damage inspections") — those are legitimate
+// replies, and flagging them causes false positives that swap normal
+// conversation for a refusal. The business name is likewise the bot's own
+// persona, not a secret, so it is not used as a canary. Keep this list adjacent
+// to the niche copy and in sync if the copy is edited.
 const CANARY_SENTENCES: Record<string, string[]> = {
   plumbing: [
-    'a dispatcher will call you back within 15 minutes',
-    "the technician will give you an exact quote on-site",
+    'ask what the issue is (leak, clog, water heater, install, emergency)',
+    "if they say it's an emergency",
   ],
   electrical: [
-    'never diagnose over chat',
-    'the electrician will give you a free on-site estimate',
+    "ask if it's residential or commercial",
+    'ask what\'s going on (panel upgrade, outlet not working, ev charger install, lighting, code violation)',
   ],
-  hvac: ['$79 diagnostic fee', 'never quote repair prices'],
-  roofing: ['free storm-damage inspections', 'never quote over chat'],
+  hvac: [
+    'ask if it\'s heating, cooling, or maintenance',
+    'ask if the system is running at all, making noise, or just not keeping up',
+  ],
+  roofing: [
+    'ask if it\'s a leak, storm damage, replacement, or inspection',
+    "ask if there's active water coming in",
+  ],
   general: [],
 };
 
 export function getCanaryPhrases(niche: string): string[] {
-  const copy = NICHE_COPY[niche as Niche];
-  if (!copy) return [];
-  const canaries: string[] = [];
-  const nameMatch = copy.match(/"([^"]+)"/);
-  if (nameMatch) canaries.push(nameMatch[1]);
-  canaries.push(...(CANARY_SENTENCES[niche as Niche] ?? []));
-  return canaries;
+  return CANARY_SENTENCES[niche as Niche] ?? [];
 }
