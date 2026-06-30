@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chat } from '@/lib/ai';
 import { systemPrompts, getSystemPrompt } from '@/lib/prompts';
-import { verifyToken, newToken, MAX_TURNS_TOKEN, type Turn } from '@/lib/conversation';
+import { verifyToken, newToken, hasSecret, MAX_TURNS_TOKEN, type Turn } from '@/lib/conversation';
 import { filterReply } from '@/lib/outputFilter';
 
 export const runtime = 'nodejs';
@@ -99,8 +99,18 @@ export async function POST(req: NextRequest) {
 
     // Reconstruct server-owned history from the signed token (if present).
     // The client can never forge assistant turns — the token is HMAC-signed.
+    // If no signing secret is configured yet, we run single-turn (no history)
+    // rather than 500 — full multi-turn resumes automatically once the secret
+    // is set in Vercel. No security regression: single-turn has no history to
+    // forge.
+    const canSign = hasSecret();
+    if (!canSign) {
+      // eslint-disable-next-line no-console
+      console.warn('[agent] AGENT_TOKEN_SECRET missing/short — single-turn mode. Set it for signed multi-turn history.');
+    }
+
     let turns: Turn[] = [];
-    if (typeof body?.token === 'string' && body.token.length > 0) {
+    if (canSign && typeof body?.token === 'string' && body.token.length > 0) {
       const payload = verifyToken(body.token);
       if (!payload) {
         return NextResponse.json({ error: 'session expired' }, { status: 400 });
@@ -125,8 +135,12 @@ export async function POST(req: NextRequest) {
 
     const safe = filterReply(text, niche);
     const updatedTurns: Turn[] = [...turns, { role: 'assistant', content: safe }];
-    const nextToken = newToken(niche, updatedTurns);
 
+    if (!canSign) {
+      // No secret: respond single-turn, no token issued.
+      return NextResponse.json({ reply: safe });
+    }
+    const nextToken = newToken(niche, updatedTurns);
     return NextResponse.json({ reply: safe, token: nextToken });
   } catch (err) {
     return NextResponse.json({ error: sanitizeError(err) }, { status: 500 });

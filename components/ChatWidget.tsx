@@ -63,8 +63,9 @@ export default function ChatWidget() {
         }
         throw new Error(msg);
       }
-      const data = (await res.json()) as { reply: string; token: string };
-      setToken(data.token);
+      const data = (await res.json()) as { reply: string; token?: string };
+      // Token is omitted in single-turn mode (no signing secret configured).
+      setToken(data.token ?? null);
       setMessages([...next, { role: 'assistant', content: data.reply }]);
     } catch (e) {
       const m = e instanceof Error ? e.message : 'request failed';

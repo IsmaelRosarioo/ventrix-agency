@@ -30,6 +30,15 @@ function secret(): string {
   return s;
 }
 
+// Whether a usable signing secret is configured. When false, the agent endpoint
+// runs in single-turn mode (no signed history) instead of 500-ing after a
+// successful model call. Full HMAC multi-turn resumes automatically once the
+// secret is set. No security regression: single-turn has no history to forge.
+export function hasSecret(): boolean {
+  const s = process.env.AGENT_TOKEN_SECRET;
+  return typeof s === 'string' && s.length >= 32;
+}
+
 function b64url(buf: Buffer | string): string {
   return Buffer.from(buf).toString('base64url');
 }

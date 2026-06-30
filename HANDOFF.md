@@ -5,7 +5,7 @@
 
 **Last updated:** 2026-06-28
 **Maintained by:** Ismael (IsmaelRosarioo on GitHub)
-**Current model during build:** MiniMax M3 (`minimax-m3` on Ollama Cloud)
+**Current model during build:** GLM 4.5 (`glm-5.2` on Ollama Cloud)
 
 ---
 
@@ -31,7 +31,7 @@ This is a sole proprietorship (no LLC yet). Form one at ~$25K revenue.
 | Code on GitHub | ✅ github.com/IsmaelRosarioo/ventrix-agency |
 | Live on Vercel | ✅ https://ventrix-agency.vercel.app |
 | Custom domain | 🔄 In progress (ventrixagency.com → Vercel) |
-| AI demo working | ✅ Yes — uses Ollama Cloud, model `minimax-m3` |
+| AI demo working | ✅ Yes — uses Ollama Cloud, model `glm-5.2` |
 | Provider hidden from UI | ✅ Visitors see only "online now", not stack details |
 | Contact form | ✅ Built, awaits Resend API key for email delivery |
 | Outreach docs | ✅ Created |
@@ -48,7 +48,7 @@ This is a sole proprietorship (no LLC yet). Form one at ~$25K revenue.
 | Hosting | Vercel (free tier) |
 | AI — dev | Local Ollama (free, on user's PC) |
 | AI — prod | Ollama Cloud ($20/mo Pro plan) |
-| AI model | `minimax-m3` on Ollama Cloud |
+| AI model | `glm-5.2` on Ollama Cloud |
 | Backup AI options | Anthropic Claude API (also supported via `lib/ai.ts`) |
 | Code repo | github.com/IsmaelRosarioo/ventrix-agency |
 | Domain registrar | Namecheap |
@@ -114,7 +114,7 @@ Three supported providers. Switch via `AI_PROVIDER` env var:
 | `ollama-cloud` | Ollama Cloud (Pro plan) | $20/mo — covers it |
 | `anthropic` | Anthropic Claude API | Pay per token, ~$5–50/mo |
 
-**Current production setting:** `ollama-cloud` with model `minimax-m3`.
+**Current production setting:** `ollama-cloud` with model `glm-5.2`.
 
 The switcher lives in `lib/ai.ts`. To swap models, change env vars in Vercel:
 - `AI_PROVIDER` (set to `ollama-cloud`, `ollama`, or `anthropic`)
@@ -127,7 +127,7 @@ The switcher lives in `lib/ai.ts`. To swap models, change env vars in Vercel:
 The user has Ollama Pro ($20/mo). Available models include:
 
 **Best for general chat:**
-- `minimax-m3` ← currently using (the model this conversation runs on)
+- `glm-5.2` ← currently using
 - `minimax-m2.7`, `m2.5`, `m2.1` (smaller, faster)
 - `deepseek-v3.1:671b` (671B params, near-frontier)
 - `deepseek-v4-flash` (faster, smaller)
@@ -152,15 +152,17 @@ To use a different model, just update `OLLAMA_CLOUD_MODEL` in Vercel env vars.
 |---|---|---|
 | `AI_PROVIDER` | `ollama-cloud` | Which AI backend |
 | `OLLAMA_CLOUD_API_KEY` | (rotated, never paste in chat) | Ollama Cloud auth |
-| `OLLAMA_CLOUD_MODEL` | `minimax-m3` | Model name |
+| `OLLAMA_CLOUD_MODEL` | `glm-5.2` | Model name |
 | `NEXT_PUBLIC_BUSINESS_NAME` | `Ventrix Agency` | Brand name in UI |
-| `NEXT_PUBLIC_SITE_URL` | `https://ventrixagency.com` | Canonical URL |
+| `NEXT_PUBLIC_SITE_URL` | `https://www.ventrixagency.com` | Canonical URL |
 | `NEXT_PUBLIC_PHONE` | (empty) | Phone shown in UI |
 | `CONTACT_EMAIL` | `hello@ventrixagency.com` | Lead destination |
+| `AGENT_TOKEN_SECRET` | (generate 32+ char secret, keep hidden) | HMAC secret for signed conversation tokens — required for multi-turn history. Without it the agent runs single-turn (no 500). |
 
 **Still to add (not yet set):**
 - `RESEND_API_KEY` — for contact form to email leads
 - `ANTHROPIC_API_KEY` — backup AI provider (optional)
+- `AGENT_TOKEN_SECRET` — HMAC secret for signed multi-turn history (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Optional now: the agent degrades to single-turn without it instead of 500-ing.
 
 ---
 
@@ -194,7 +196,7 @@ Branch: `main` (only branch)
 
 **To deploy changes:**
 ```bash
-cd C:\Users\benny\Documents\ai-business-foundation
+cd C:\Users\benny\Desktop\VentrixAgency\ventrix-agency
 git add .
 git commit -m "descriptive message"
 git push
@@ -332,7 +334,7 @@ If user wants to switch from `minimax-m3` to a different model:
 
 ### Deploy a code change:
 ```powershell
-cd C:\Users\benny\Documents\ai-business-foundation
+cd C:\Users\benny\Desktop\VentrixAgency\ventrix-agency
 git add .
 git commit -m "describe change"
 git push
@@ -340,7 +342,7 @@ git push
 
 ### Run locally:
 ```powershell
-cd C:\Users\benny\Documents\ai-business-foundation
+cd C:\Users\benny\Desktop\VentrixAgency\ventrix-agency
 npm install    # first time only
 npm run dev    # http://localhost:3000
 ```
