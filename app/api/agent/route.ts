@@ -2,36 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { chat } from '@/lib/ai';
 import { systemPrompts, getSystemPrompt } from '@/lib/prompts';
 import { verifyToken, newToken, hasSecret, MAX_TURNS_TOKEN, type Turn } from '@/lib/conversation';
+import { originOk } from '@/lib/origin';
 import { filterReply } from '@/lib/outputFilter';
 
 export const runtime = 'nodejs';
 
-type Body = { message?: unknown; niche?: unknown; token?: unknown };
+// Carries the encrypted conversation history. HttpOnly so JS/XSS cannot read
+// it; SameSite=Lax so it is only sent on same-site requests; Secure in prod.
+export const COOKIE_NAME = 'ventrix_chat';
+const COOKIE_TTL_S = 15 * 60;
+
+type Body = { message?: unknown; niche?: unknown };
 
 const ALLOWED_NICHES = Object.keys(systemPrompts);
-
-// --- Same-origin enforcement -------------------------------------------------
-// Only requests from this site itself are accepted. Stops the endpoint being
-// called from curl, another domain, or a script using your paid model for free.
-function allowedOrigins(): string[] {
-  const origins: string[] = [];
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
-  if (site) origins.push(site.replace(/\/$/, ''));
-  if (process.env.VERCEL_URL) origins.push(`https://${process.env.VERCEL_URL}`);
-  origins.push(
-    'https://ventrix-agency.vercel.app',
-    'https://www.ventrixagency.com',
-    'http://localhost:3000',
-  );
-  return origins;
-}
-
-function originOk(req: NextRequest): boolean {
-  const allowed = allowedOrigins();
-  const match = (h: string | null) =>
-    !!h && allowed.some((a) => h === a || h.startsWith(`${a}/`));
-  return match(req.headers.get('origin')) || match(req.headers.get('referer'));
-}
 
 // --- Lightweight in-memory rate limit (per IP, fixed window) -----------------
 // Best-effort on Vercel serverless (per instance). Stops casual abuse and
@@ -75,6 +58,16 @@ function sanitizeError(err: unknown): string {
   return 'The assistant is unavailable right now. Please try again in a moment.';
 }
 
+function cookieOpts() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: COOKIE_TTL_S,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!originOk(req)) {
@@ -97,28 +90,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid request' }, { status: 400 });
     }
 
-    // Reconstruct server-owned history from the signed token (if present).
-    // The client can never forge assistant turns — the token is HMAC-signed.
-    // If no signing secret is configured yet, we run single-turn (no history)
-    // rather than 500 — full multi-turn resumes automatically once the secret
-    // is set in Vercel. No security regression: single-turn has no history to
-    // forge.
+    // If no encryption secret is configured, run single-turn (no history) and
+    // do not set a cookie. Full multi-turn resumes once AGENT_TOKEN_SECRET is
+    // set. No security regression: single-turn has no history to forge.
     const canSign = hasSecret();
     if (!canSign) {
       // eslint-disable-next-line no-console
-      console.warn('[agent] AGENT_TOKEN_SECRET missing/short — single-turn mode. Set it for signed multi-turn history.');
+      console.warn('[agent] AGENT_TOKEN_SECRET missing/short — single-turn mode. Set it for encrypted multi-turn history.');
     }
 
+    // Reconstruct server-owned history from the encrypted cookie token.
+    // A missing/expired/tampered token, or a niche switch, simply starts a
+    // fresh conversation — it is NOT an error. (Tampering is detected by the
+    // GCM auth tag; a forged token decrypts to null and is ignored.)
     let turns: Turn[] = [];
-    if (canSign && typeof body?.token === 'string' && body.token.length > 0) {
-      const payload = verifyToken(body.token);
-      if (!payload) {
-        return NextResponse.json({ error: 'session expired' }, { status: 400 });
+    if (canSign) {
+      const cookieToken = req.cookies.get(COOKIE_NAME)?.value;
+      if (cookieToken) {
+        const payload = verifyToken(cookieToken);
+        if (payload && payload.niche === niche) {
+          turns = payload.turns.length >= MAX_TURNS_TOKEN ? [] : payload.turns;
+        }
       }
-      if (payload.niche !== niche) {
-        return NextResponse.json({ error: 'invalid request' }, { status: 400 });
-      }
-      turns = payload.turns.length >= MAX_TURNS_TOKEN ? [] : payload.turns;
     }
     turns.push({ role: 'user', content: message });
 
@@ -136,12 +129,11 @@ export async function POST(req: NextRequest) {
     const safe = filterReply(text, niche);
     const updatedTurns: Turn[] = [...turns, { role: 'assistant', content: safe }];
 
-    if (!canSign) {
-      // No secret: respond single-turn, no token issued.
-      return NextResponse.json({ reply: safe });
+    const res = NextResponse.json({ reply: safe });
+    if (canSign) {
+      res.cookies.set(COOKIE_NAME, newToken(niche, updatedTurns), cookieOpts());
     }
-    const nextToken = newToken(niche, updatedTurns);
-    return NextResponse.json({ reply: safe, token: nextToken });
+    return res;
   } catch (err) {
     return NextResponse.json({ error: sanitizeError(err) }, { status: 500 });
   }

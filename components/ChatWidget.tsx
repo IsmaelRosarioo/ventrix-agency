@@ -18,8 +18,6 @@ export default function ChatWidget() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Opaque server-issued token carrying the signed conversation history.
-  const [token, setToken] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // We deliberately don't expose the AI provider to visitors.
@@ -45,7 +43,9 @@ export default function ChatWidget() {
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.content, niche, token: token ?? undefined }),
+        // The encrypted conversation token travels in an HttpOnly cookie set by
+        // the server, not in the body — JS (and therefore XSS) cannot read it.
+        body: JSON.stringify({ message: userMsg.content, niche }),
       });
       if (!res.ok) {
         const t = await res.text();
@@ -56,16 +56,9 @@ export default function ChatWidget() {
         } catch {
           if (t) msg = t;
         }
-        // A tampered/expired server token: start a fresh conversation.
-        if (msg === 'session expired') {
-          setToken(null);
-          setMessages([]);
-        }
         throw new Error(msg);
       }
-      const data = (await res.json()) as { reply: string; token?: string };
-      // Token is omitted in single-turn mode (no signing secret configured).
-      setToken(data.token ?? null);
+      const data = (await res.json()) as { reply: string };
       setMessages([...next, { role: 'assistant', content: data.reply }]);
     } catch (e) {
       const m = e instanceof Error ? e.message : 'request failed';
@@ -78,7 +71,8 @@ export default function ChatWidget() {
   function reset() {
     setMessages([]);
     setError(null);
-    setToken(null);
+    // Tell the server to drop the encrypted history cookie.
+    void fetch('/api/agent-reset', { method: 'POST' }).catch(() => {});
   }
 
   return (
