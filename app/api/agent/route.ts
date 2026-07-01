@@ -7,6 +7,13 @@ import { filterReply } from '@/lib/outputFilter';
 
 export const runtime = 'nodejs';
 
+// Master switch for the live AI demo.
+//   false → the bot is taken offline: every request gets a friendly 503, the
+//          model is never called (no credit burn), no cookie is set.
+//   true  → normal operation.
+// Flip this back to true and redeploy to resume the demo.
+const DEMO_LIVE = false;
+
 // Carries the encrypted conversation history. HttpOnly so JS/XSS cannot read
 // it; SameSite=Lax so it is only sent on same-site requests; Secure in prod.
 export const COOKIE_NAME = 'ventrix_chat';
@@ -70,6 +77,12 @@ function cookieOpts() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!DEMO_LIVE) {
+      return NextResponse.json(
+        { error: 'Our live demo is temporarily offline for upgrades. Please check back soon!' },
+        { status: 503 },
+      );
+    }
     if (!originOk(req)) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 403 });
     }
