@@ -3,7 +3,7 @@
 > **Read this first.** Complete project state for the Ventrix Agency website.
 > Designed so any AI assistant can pick up where Claude Code (M3) left off.
 
-**Last updated:** 2026-06-28
+**Last updated:** 2026-07-01
 **Maintained by:** Ismael (IsmaelRosarioo on GitHub)
 **Current model during build:** GLM 4.5 (`glm-5.2` on Ollama Cloud)
 
@@ -32,6 +32,7 @@ This is a sole proprietorship (no LLC yet). Form one at ~$25K revenue.
 | Live on Vercel | ✅ https://ventrix-agency.vercel.app |
 | Custom domain | 🔄 In progress (ventrixagency.com → Vercel) |
 | AI demo working | ✅ Yes — uses Ollama Cloud, model `glm-5.2` |
+| Live demo master switch | ✅ `DEMO_LIVE=true` in `app/api/agent/route.ts` (was paused 2026-06-30 via `1213a06`, re-enabled 2026-07-01). Flip to `false` + redeploy to take the bot offline without burning model credits. |
 | Provider hidden from UI | ✅ Visitors see only "online now", not stack details |
 | Contact form | ✅ Built, awaits Resend API key for email delivery |
 | Outreach docs | ✅ Created |
