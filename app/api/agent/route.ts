@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 //          model is never called (no credit burn), no cookie is set.
 //   true  → normal operation.
 // Flip this back to true and redeploy to resume the demo.
-const DEMO_LIVE = false;
+const DEMO_LIVE = true;
 
 // Carries the encrypted conversation history. HttpOnly so JS/XSS cannot read
 // it; SameSite=Lax so it is only sent on same-site requests; Secure in prod.
